@@ -8,10 +8,16 @@ from tensorflow import set_random_seed
 set_random_seed(4)
 from util import csv_to_dataset, history_points
 
+import matplotlib.pyplot as plt
+
 
 # dataset
 
 ohlcv_histories, _, next_day_open_values, unscaled_y, y_normaliser = csv_to_dataset('MSFT_daily.csv')
+
+# print(ohlcv_histories)
+# print(ohlcv_histories.shape)
+# exit()
 
 test_split = 0.9
 n = int(ohlcv_histories.shape[0] * test_split)

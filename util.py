@@ -7,13 +7,40 @@ history_points = 50
 
 def csv_to_dataset(csv_path):
     data = pd.read_csv(csv_path)
+    
+    #TESTS ---------------------------------------------------------------------
+    # print(data.head())
+    # exit()
+    #---------------------------------------------------------------------------
+
     data = data.drop('date', axis=1)
     data = data.drop(0, axis=0)
 
+    #TESTS ---------------------------------------------------------------------
+    # print(data.head())
+    # exit()
+    #---------------------------------------------------------------------------
+
     data = data.values
+
+    #TESTS ---------------------------------------------------------------------
+    # print(data.shape)
+    # print(type(data[0][0]))
+    # print(data)
+    # exit()
+    #---------------------------------------------------------------------------
 
     data_normaliser = preprocessing.MinMaxScaler()
     data_normalised = data_normaliser.fit_transform(data)
+
+    # TESTS --------------------------------------------------------------------
+    # data_denormalised = data_normaliser.inverse_transform(data_normalised)
+    # print(data.shape)
+    # print(type(data[0][0]))
+    # print(data_normalised)
+    # print(data_denormalised)
+    # exit()
+    #---------------------------------------------------------------------------
 
     # using the last {history_points} open close high low volume data points, predict the next open value
     ohlcv_histories_normalised = np.array([data_normalised[i:i + history_points].copy() for i in range(len(data_normalised) - history_points)])
