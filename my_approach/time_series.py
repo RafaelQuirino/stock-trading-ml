@@ -1,4 +1,7 @@
+#!/home/rafael/Documents/workspace/github/stock-trading-ml/venv/bin/python3
+
 import util
+import math
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -6,8 +9,8 @@ import matplotlib.pyplot as plt
 '''
 '''
 def import_data(csv_file, price_column_name, datetime_column_name, T=0):
-    df     = pd.read_csv(csv_file)
-    prices = np.array(df[price_column_name])[T:]
+    df         = pd.read_csv(csv_file)
+    prices     = np.array(df[price_column_name])[T:]
     datetimes  = np.array(df[datetime_column_name])[T:]
     return prices, datetimes, csv_file
 
@@ -55,31 +58,14 @@ def moving_average(sgn, winsize=3, mtype='left', start=0, end=-1):
     if end == -1:
         end = len(sgn)
 
-    '''
-    '''
-    def moving_average_left(sgn, winsize, start, end):
-        ma = np.zeros(len(sgn))
-        for i in range(len(sgn)):
-            a, b = i-winsize+1, i+1
-            if i < winsize - 1:
-                a, b = 0, i+1
+    ma = np.zeros(len(sgn))
+    for i in range(len(sgn)):
+        a, b = i-winsize+1, i+1
+        if i < winsize - 1:
+            a, b = 0, i+1
 
-            winsum = sgn[a:b].sum()
-            ma[i] = winsum / float(b-a)
-
-        return ma
-
-    '''
-    TODO
-    '''
-    def moving_average_center(sgn, winsize, start, end):
-        return []
-
-    ma = []
-    if mtype == 'left':
-        ma = moving_average_left(sgn, winsize, start, end)
-    elif mtype == 'center':
-        ma = moving_average_center(sgn, winsize, start, end)
+        winsum = np.sum(sgn[a:b])
+        ma[i] = winsum / float(b-a)
 
     return ma
 
@@ -133,6 +119,8 @@ def autocorrelation_function(sgn):
 Simple Moving Average (SMA)
 '''
 def SMA (sgn, winsize=20):
+    if winsize > len(sgn):
+        winsize = len(sgn)
     return moving_average(sgn, winsize=winsize)
 
 '''
@@ -165,8 +153,14 @@ def BB (sgn, winsize=20, stdmult=2.0, autoadjust=False):
 '''
 Momentum Oscilator (MO)
 '''
-def MO (sgn, winsize=14):
+def MO (sgn, winsize=20, limit=100.0):
     mo = np.zeros(len(sgn))
+    for i in range(len(mo)):
+        a, b = i-winsize+1, i+1
+        if i < winsize - 1:
+            a, b = 0, i+1
+        mo[i] = (sgn[i] / sgn[a]) * limit
+    return mo, limit
 
 '''
 Relative Strength Index (RSI)
@@ -213,13 +207,96 @@ def RSI(sgn, lothreshold=30.0, hithreshold=70.0, initsize=14): # Standard litera
 
 '''
 Commodity Channel Index (CCI)
+Obs.: This indicator was adapted to daytrading minute-to-minute day_prices,
+      i.e., no high/low/close observations.
 '''
-def CCI (sgn, winsize=14):
-    return []
+def CCI (sgn, winsize=20):
+    cci = np.zeros(len(sgn))
+    for i in range(len(cci)):
+        a, b = i-winsize+1, i+1
+        if i < winsize - 1:
+            a, b = 0, i+1
+        k = 0.015   # Literature constant
+        tp = sgn[i] # Typical price here is just the price
+        ma = np.sum(sgn[a:b]) / float(b-a)
+        md = np.sum(np.abs(sgn[a:b] - ma)) / float(b-a)
+        if md == 0:
+            md = 1e-9
+        cci[i] = (tp - ma) / (k * md)
+    return cci
 
 '''
 Stochastic Oscilator (SO)
 '''
 def SO (sgn, lothreshold=20, hithreshold=80, winsize=14): # Standard literature values
-    return []
+    so = np.zeros(len(sgn))
+    for i in range(len(so)):
+        a, b = i-winsize+1, i+1
+        if i < winsize - 1:
+            a, b = 0, i+1
+        lo = np.min(sgn[a:b])
+        hi = np.max(sgn[a:b])
+        if hi - lo == 0:
+            hi += 1
+        so[i] = ((sgn[i] - lo) / (hi - lo)) * 100.0
+    return so, lothreshold, hithreshold
+#-------------------------------------------------------------------------------
+
+#-------------------------------------------------------------------------------
+# Invented day trading indicators
+#-------------------------------------------------------------------------------
+def BB_PEAKS(sgn, bb):
+    if len(sgn) != len(bb[0]):
+        return None
+
+    bb_peaks = np.zeros(len(sgn))
+
+    IDLE     = 0
+    ENTER_LO = 1
+    ENTER_HI = 2
+    state    = IDLE
+    pos      = None
+    for i in range(len(sgn)):
+        if sgn[i] <= bb[1][i]:
+            state = ENTER_LO
+            pos = i
+        elif sgn[i] >= bb[2][i]:
+            state = ENTER_HI
+            pos = i
+        else:
+            state = IDLE
+
+        if state == ENTER_LO:
+            area = 0.0
+            for k in range(pos,i):
+                area += sgn[k] - bb[1][k]
+            area /= ((i-pos)+1)
+            bb_peaks[i] = area
+        elif state == ENTER_HI:
+            area = 0.0
+            for k in range(pos,i):
+                area += sgn[k] - bb[2][k]
+            area /= ((i-pos)+1)
+            bb_peaks[i] = area
+
+    plt.plot(bb_peaks)
+    plt.show()
+    # exit()
+
+    return bb_peaks
+
+def BB_PEAKS_2 (sgn, bb):
+    if len(sgn) != len(bb[0]):
+        return None
+
+    bb_peaks = np.zeros(len(sgn))
+
+    for i in range(len(sgn)):
+        p = sgn[i]
+        if p < bb[1][i]:
+            bb_peaks[i] = p - bb[1][i]
+        elif p > bb[2][i]:
+            bb_peaks[i] = p - bb[2][i]
+
+    return bb_peaks
 #-------------------------------------------------------------------------------
